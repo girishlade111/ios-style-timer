@@ -56,9 +56,9 @@ Each digit sits in its own reel showing the current digit plus its neighbors
   with a 300ms `easeInOut` roll (Framer Motion `AnimatePresence`)
 - **Reel illusion** — 5-digit window per column with top/bottom gradient fade masks
 - **Zero-padded `mm:ss` display** — four independent `DigitReel` columns + colon
-- **Self-contained countdown engine** — `setInterval`-driven, auto-stops at `00:00`
+- **Self-contained countdown engine** — deadline-based (`Date.now()`), drift-free, auto-stops at `00:00`
 - **Dark-first design** — hard-coded dark theme, pure-black background
-- **Custom typography** — TWK Everett display font (local) + Inter body font
+- **Custom typography** — Space Grotesk display font (Google, temporary) + Inter body font — TWK Everett restore snippet in `app/fonts.ts`
 - **Responsive** — centered flex layout, works on mobile and desktop
 - **shadcn-ready** — full shadcn/ui CLI config + Radix primitives pre-installed
 
@@ -68,7 +68,7 @@ Each digit sits in its own reel showing the current digit plus its neighbors
 
 | Layer | Technology | Version |
 | ----- | ---------- | ------- |
-| Framework | Next.js (App Router) | 15.2.4 |
+| Framework | Next.js (App Router) | 15.2.8 |
 | UI library | React | 19 |
 | Language | TypeScript | 5.x |
 | Styling | Tailwind CSS | 3.4.17 |
@@ -76,7 +76,7 @@ Each digit sits in its own reel showing the current digit plus its neighbors
 | Component system | shadcn/ui + Radix UI | — |
 | Icons | Lucide React | 0.454.0 |
 | Theming | next-themes | 0.4.4 |
-| Fonts | next/font (Inter via Google, TWK Everett local) | — |
+| Fonts | next/font (Inter + Space Grotesk via Google) | — |
 | Analytics | @vercel/analytics (installed, not wired) | 1.3.1 |
 | Package manager | pnpm | — |
 | Hosting | Vercel | — |
@@ -102,9 +102,8 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-> ⚠️ **Before `pnpm build`:** the TWK Everett `.woff2` files referenced by
-> `app/fonts.ts` are missing from the repo and the build will fail without them.
-> See [Known Issues](#known-issues) for the one-minute fix.
+> ℹ️ **Fonts:** `app/fonts.ts` temporarily uses Google's Space Grotesk — the original
+> TWK Everett `.woff2` files were never committed. Restore snippet is in the file.
 
 ---
 
@@ -115,7 +114,7 @@ ios-style-timer/
 ├── app/
 │   ├── layout.tsx            # Root layout: fonts, metadata, dark mode
 │   ├── page.tsx              # Home page → <CountdownTimer minutes={15} seconds={42} />
-│   ├── fonts.ts              # TWK Everett local-font loader (⚠️ files missing)
+│   ├── fonts.ts              # Font loader (Space Grotesk, temporary — TWK Everett restore snippet inside)
 │   └── globals.css           # Tailwind + shadcn theme tokens
 ├── components/
 │   ├── countdown-timer.tsx   # mm:ss state machine, 1-second tick
@@ -142,12 +141,10 @@ ios-style-timer/
 
 ### Countdown engine (`components/countdown-timer.tsx`)
 
-React state holds `minutes`, `seconds`, and `isActive`. A `useEffect` runs
-`setInterval(1000)`:
-
-- `seconds > 0` → decrement seconds
-- else `minutes > 0` → `minutes − 1`, `seconds = 59`
-- else → clear interval, `isActive = false` (timer stops at `00:00`)
+The component computes a deadline once (`Date.now() + totalMs`) and polls it
+every 250 ms. Display value = `Math.ceil(remainingMs / 1000)`, clamped at 0 —
+no drift, immune to background-tab throttling. When the deadline passes, the
+interval clears and the timer stops at `00:00`.
 
 The padded `mm:ss` string is split into characters; each character renders in its
 own `<DigitReel>`.
@@ -173,11 +170,10 @@ top and bottom edges, completing the cylindrical iOS effect.
 Every config file is documented option-by-option in
 **[`docs/ENV-CONFIGURATION.md`](docs/ENV-CONFIGURATION.md)**:
 
-- `next.config.mjs` — ESLint/TS build behavior, unoptimized images
+- `next.config.mjs` — static export (`output: "export"`), ESLint/TS build behavior, unoptimized images
 - `tsconfig.json` — strict mode, `@/*` alias, bundler resolution
-- `tailwind.config.ts` — class dark mode, content globs, theme tokens, TWK Everett
-- `postcss.config.mjs` — Tailwind pipeline
-  (note: `autoprefixer` and `tailwindcss-animate` are installed but not wired)
+- `tailwind.config.ts` — class dark mode, content globs, theme tokens, `tailwindcss-animate` plugin
+- `postcss.config.mjs` — Tailwind + autoprefixer pipeline
 - `components.json` — shadcn/ui CLI setup (ready for `npx shadcn-ui@latest add …`)
 - `app/fonts.ts` — local + Google font loading
 - `package.json` — scripts and dependency inventory
@@ -210,7 +206,7 @@ Summary:
 | Radix UI / shadcn component set | ⚠️ Installed, unused |
 | Form/chart/carousel/toast utilities | ⚠️ Installed, unused (prune or use) |
 | next-themes `ThemeProvider` | ⚠️ Installed, not used by layout |
-| TWK Everett local fonts | ❌ `.woff2` files missing — build blocker |
+| TWK Everett local fonts | ⚠️ Files never committed — temporary Google-Font swap active |
 
 ---
 
@@ -233,8 +229,8 @@ Summary:
 | Script | Command | Description |
 | ------ | ------- | ----------- |
 | `pnpm dev` | `next dev` | Dev server with hot reload |
-| `pnpm build` | `next build` | Production build → `.next/` |
-| `pnpm start` | `next start` | Serve the production build |
+| `pnpm build` | `next build` | Static export → `out/` |
+| `pnpm start` | `next start` | Serve a server build (not used with `output: "export"`) |
 | `pnpm lint` | `next lint` | Lint (prompts ESLint setup on first run) |
 
 ---
@@ -245,38 +241,35 @@ Summary:
 get preview URLs. Framework auto-detection handles the build — no `vercel.json`
 needed.
 
-**Manual:**
+**Manual (static export):**
 
 ```bash
-pnpm build && pnpm start
+pnpm build   # → out/
+npx serve out
 ```
 
-**Other platforms:** standard Next.js 15 app — works on Netlify, Cloudflare Pages
-(via `@cloudflare/next-on-pages`), or any Node host.
+**Other platforms:** static output — works on Cloudflare Pages (live:
+https://ios-style-timer.pages.dev), Netlify, GitHub Pages, or any static host.
 
 ---
 
 ## Known Issues
 
-1. ❌ **Missing font files** — `public/fonts/TWKEverett-*.woff2` don't exist;
-   `next build` fails. Add the licensed files or temporarily swap to a Google Font
-   (exact snippet in `docs/THIRD-PARTY-INTEGRATIONS.md` §7).
+1. ⚠️ **Font swap is temporary** — `app/fonts.ts` uses Google's Space Grotesk;
+   restore TWK Everett via the snippet in the file once the licensed `.woff2` files exist.
 2. ⚠️ `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` are `true` —
    fine for prototyping, flip to `false` for production.
-3. ⚠️ `setInterval`-based timing drifts over long runs; use a `Date.now()` deadline
-   for accuracy-critical use.
-4. ⚠️ `styles/globals.css` duplicates `app/globals.css` — safe to delete `styles/`.
-5. ⚠️ Large unused dependency footprint (Radix set, recharts, form libs, …) —
+3. ⚠️ Large unused dependency footprint (Radix set, recharts, form libs, …) —
    prune or put to use.
 
 ---
 
 ## Roadmap
 
-- [ ] Fix TWK Everett font files (or finalize Google-Font swap)
+- [x] Fix TWK Everett font files (temporary Google-Font swap active)
 - [ ] Pause / resume / reset controls
 - [ ] Configurable duration via URL params or a settings UI
-- [ ] Deadline-based timing (drift-free)
+- [x] Deadline-based timing (drift-free)
 - [ ] Completion callback (sound, confetti, webhook)
 - [ ] Enable Vercel Analytics
 - [ ] Turn on strict TypeScript + ESLint build gates

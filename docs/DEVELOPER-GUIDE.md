@@ -48,10 +48,10 @@ ios-style-timer/
 ├── app/
 │   ├── layout.tsx        # Root layout: <html>, fonts, metadata, dark mode
 │   ├── page.tsx          # Home page: renders <CountdownTimer>
-│   ├── fonts.ts          # TWK Everett local-font config (⚠️ files missing)
+│   ├── fonts.ts          # Font config (Space Grotesk, temp — TWK Everett restore snippet inside)
 │   └── globals.css       # Tailwind + shadcn CSS variables (light/dark)
 ├── components/
-│   ├── countdown-timer.tsx  # Countdown logic: mm:ss state, 1s interval
+│   ├── countdown-timer.tsx  # Countdown logic: Date.now() deadline, 250ms poll
 │   ├── digit-reel.tsx       # Animated digit column (framer-motion)
 │   └── theme-provider.tsx   # next-themes wrapper (⚠️ unused by layout)
 ├── lib/
@@ -97,24 +97,23 @@ State:
 
 | State | Type | Purpose |
 | ----- | ---- | ------- |
-| `minutes` / `seconds` | `number` | Remaining time |
-| `isActive` | `boolean` | `false` stops the interval at 00:00 |
+| `remainingMs` | `number` | Milliseconds left until the deadline |
+| `isActive` | `boolean` | `false` stops the timer at 00:00 |
+| `endRef` | `ref<number>` | Fixed deadline (`Date.now() + totalMs`) |
 
-Behavior:
+Behavior (deadline-based, drift-free — 2026-09-27 audit):
 
-- A `useEffect` on `[isActive, minutes, seconds]` runs a `setInterval(1000)`.
-- Each tick: `seconds > 0` → decrement seconds; else if `minutes > 0` → minute − 1,
-  seconds = 59; else clear the interval and set `isActive(false)`.
-- Cleanup clears the interval on unmount or dependency change (no leaks, no double
-  intervals under React StrictMode remounts).
+- A `useEffect` on `[isActive, totalMs]` computes a deadline (`Date.now() + totalMs`)
+  and polls it every 250 ms.
+- Display value = `Math.ceil(remainingMs / 1000)`, clamped at 0; when the deadline
+  passes, the interval clears and the timer stops at `00:00`.
+- Immune to `setInterval` drift and background-tab throttling.
 - Numbers are zero-padded (`padStart(2, "0")`), split into single characters, and
   each character renders in its own `<DigitReel>`.
 
 Limitations to know:
 
-- **Drift:** `setInterval(1000)` drifts over long runs (tab throttling, event-loop
-  lag). For a production-grade timer, compute remaining time from a `Date.now()`
-  deadline instead of decrementing a counter.
+- **Drift:** fixed — deadline-based timing since the 2026-09-27 audit.
 - **No pause/reset UI:** `isActive` starts `true`; there are no controls. Add buttons
   that call `setIsActive` / reset state if you need them.
 - **No persistence:** refresh restarts from the initial props.
@@ -149,8 +148,9 @@ Props: `value: string` (single character), optional `className` (merged via `cn(
 ### 4.5 Fonts
 
 - **Inter** (body): `next/font/google` in `layout.tsx` — self-hosted at build time.
-- **TWK Everett** (display digits): `next/font/local` in `app/fonts.ts` —
-  **currently broken** because `public/fonts/*.woff2` are missing (see §7).
+- **Space Grotesk** (display digits): `next/font/google` in `app/fonts.ts` —
+  temporary swap (2026-09-27 audit); TWK Everett restore snippet kept as a comment
+  in the file (see §7).
 
 ---
 
@@ -235,13 +235,13 @@ import { ThemeProvider } from "@/components/theme-provider"
 
 | # | Issue | Impact | Fix |
 | - | ----- | ------ | --- |
-| 1 | `public/fonts/*.woff2` missing | `next build` fails | Add licensed files or apply Google-Font swap (see integrations doc §7) |
+| 1 | TWK Everett font swap is temporary | Restore when licensed files exist | Uncomment snippet in `app/fonts.ts` (see integrations doc §7) |
 | 2 | `typescript.ignoreBuildErrors: true` | Type bugs ship silently | Set `false` after cleaning types |
 | 3 | `eslint.ignoreDuringBuilds: true` + no ESLint config | No lint gate at all | Add ESLint config, set `false` |
 | 4 | `@vercel/analytics` installed but unused | Dead dependency | Wire `<Analytics />` or `pnpm remove` it |
 | 5 | `ThemeProvider` unused in layout | Dead code path | Wire up (see §5.6) or remove |
-| 6 | `styles/globals.css` duplicates `app/globals.css` | Confusion, possible drift | Delete `styles/` (nothing imports it) |
-| 7 | `setInterval` drift | Timer loses accuracy over hours | Deadline-based countdown (`Date.now()`) |
+| 6 | ~~`styles/globals.css` duplicated `app/globals.css`~~ | Fixed 2026-09-27 | Deleted `styles/` |
+| 7 | ~~`setInterval` drift~~ | Fixed 2026-09-27 | Deadline-based countdown (`Date.now()`) |
 | 8 | Unused deps (radix set, recharts, form libs…) | Slow installs, larger surface | Prune per integrations doc §4 |
 
 ---
@@ -250,10 +250,10 @@ import { ThemeProvider } from "@/components/theme-provider"
 
 | Symptom | Cause | Fix |
 | ------- | ----- | --- |
-| `next build` fails on `next/font/local` | Missing `public/fonts/*.woff2` | §7 issue #1 |
+| `next build` fails on `next/font/local` | Fixed 2026-09-27 (temp swap) | Restore via snippet in `app/fonts.ts` |
 | `font-twk-everett` has no effect | Font failed to load or variable not applied | Check `app/fonts.ts` + layout `body` class |
 | Digits don't animate | `framer-motion` not installed / SSR mismatch | `pnpm install`; ensure `"use client"` |
-| Timer keeps running in background tab | Browsers throttle `setInterval` | Deadline-based timing (§7 #7) |
+| Timer drifts in background tab | Fixed 2026-09-27 | Deadline-based timing |
 | Tailwind classes missing in new files | File outside `content` globs | Add path to `tailwind.config.ts` `content` |
 | `next lint` asks to set up ESLint | No ESLint config in repo | Accept the prompt, then configure rules |
 | Port 3000 in use | Another dev server running | `pnpm dev -- -p 3001` |
@@ -268,13 +268,13 @@ on every PR. No `vercel.json` needed; framework auto-detection handles it.
 **Manual:**
 
 ```bash
-pnpm build && pnpm start   # serves on :3000
+pnpm build        # static export → out/
+npx serve out     # preview the static build
 ```
 
-**Other platforms:** the app is a standard Next.js 15 app — deployable to Netlify,
-Cloudflare Pages (via `@cloudflare/next-on-pages`), or any Node host. Static export
-(`output: "export"`) is possible but requires `images.unoptimized` (already set) and
-removal of any future server-only features.
+**Other platforms:** static output — live on Cloudflare Pages
+(https://ios-style-timer.pages.dev). Also deployable to Netlify, GitHub Pages, or
+any static host. `output: "export"` is set in `next.config.mjs` (2026-09-27 audit).
 
 ---
 

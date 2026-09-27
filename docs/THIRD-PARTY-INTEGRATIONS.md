@@ -66,7 +66,7 @@ All packages come from the public npm registry. Install with `pnpm install`.
 
 | Package | Version | Role |
 | ------- | ------- | ---- |
-| `next` | 15.2.4 | React framework: App Router, SSR, build system |
+| `next` | 15.2.8 | React framework: App Router, SSR, build system (patched: CVE-2025-55182/66478/55184/67779) |
 | `react` / `react-dom` | 19 | UI library |
 | `typescript` | 5.x | Type checking |
 | `@types/node`, `@types/react`, `@types/react-dom` | — | Type definitions (dev) |
@@ -77,8 +77,8 @@ All packages come from the public npm registry. Install with `pnpm install`.
 | ------- | ------- | ---- |
 | `tailwindcss` | 3.4.17 | Utility-first CSS (dev) |
 | `postcss` | 8.5 | CSS processing pipeline (dev) |
-| `autoprefixer` | 10.4.20 | Vendor prefixes — installed but **not wired** into `postcss.config.mjs` |
-| `tailwindcss-animate` | 1.0.7 | Animation utilities — installed but **not registered** in `tailwind.config.ts` |
+| `autoprefixer` | 10.4.20 | Vendor prefixes — wired in `postcss.config.mjs` |
+| `tailwindcss-animate` | 1.0.7 | Animation utilities — registered in `tailwind.config.ts` plugins |
 | `clsx` | 2.1.1 | Conditional class-name joining |
 | `tailwind-merge` | 2.5.5 | Merges conflicting Tailwind classes (used by `cn()`) |
 | `class-variance-authority` | 0.7.1 | Variant-based component APIs (shadcn pattern) |
@@ -193,27 +193,15 @@ runtime request to Google servers, no GDPR/privacy concern, works offline after 
 **What:** Brand/display typeface loaded via `next/font/local` in `app/fonts.ts`
 from `public/fonts/TWKEverett-{Medium,Regular}.woff2`.
 
-**Status:** ❌ **Broken — the `.woff2` files are missing from the repo.**
-`next build` will fail because `next/font/local` requires the source file to exist.
+**Status:** ⚠️ **Temporary swap active (2026-09-27 audit).** The `.woff2` files
+were never committed, so `app/fonts.ts` currently uses Google's Space Grotesk
+with the same `--font-twk-everett` CSS variable — builds are green and the
+`font-twk-everett` Tailwind utility works unchanged.
 
-**Fix options:**
-
-1. **Add the files** — obtain the licensed TWK Everett woff2 files and place them at
-   `public/fonts/TWKEverett-Medium.woff2` and `public/fonts/TWKEverett-Regular.woff2`.
-2. **Temporary swap** — replace `app/fonts.ts` with a Google Font until the files
-   are available (keeps builds green):
-
-   ```ts
-   import { Space_Grotesk } from "next/font/google"
-   export const twkEverett = Space_Grotesk({
-     weight: ["400", "500"],
-     variable: "--font-twk-everett",
-     display: "swap",
-   })
-   ```
-
-   The `font-twk-everett` Tailwind utility keeps working unchanged because it reads
-   the same `--font-twk-everett` CSS variable.
+**To restore TWK Everett:** obtain the licensed woff2 files, place them at
+`public/fonts/TWKEverett-Medium.woff2` and `public/fonts/TWKEverett-Regular.woff2`,
+and uncomment the `next/font/local` block in `app/fonts.ts` (restore snippet is
+kept as a comment in the file).
 
 ---
 
@@ -229,7 +217,7 @@ from `public/fonts/TWKEverett-{Medium,Regular}.woff2`.
 | @vercel/analytics | ⚠️ Installed, not wired | Add `<Analytics />` or remove package |
 | Radix/shadcn set | ⚠️ Installed, not used | Add components or prune |
 | Utility packages (forms, charts, etc.) | ⚠️ Installed, not used | Prune if unused |
-| TWK Everett local fonts | ❌ Files missing | Add `.woff2` files or swap font |
-| tailwindcss-animate | ⚠️ Installed, not registered | Register in `tailwind.config.ts` or remove |
-| autoprefixer | ⚠️ Installed, not wired | Add to `postcss.config.mjs` or remove |
+| TWK Everett local fonts | ⚠️ Temp Google-Font swap | Restore via snippet in `app/fonts.ts` |
+| tailwindcss-animate | ✅ Registered | None |
+| autoprefixer | ✅ Wired | None |
 | next-themes / ThemeProvider | ⚠️ Installed, not used in layout | Wire up or remove |

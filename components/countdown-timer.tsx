@@ -1,39 +1,38 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import DigitReel from "./digit-reel"
 
 interface CountdownTimerProps {
-  initialMinutes: number
-  initialSeconds: number
+  initialMinutes?: number
+  initialSeconds?: number
 }
 
 export default function CountdownTimer({ initialMinutes = 0, initialSeconds = 0 }: CountdownTimerProps) {
-  const [minutes, setMinutes] = useState(initialMinutes)
-  const [seconds, setSeconds] = useState(initialSeconds)
-  const [isActive, setIsActive] = useState(true)
+  const totalMs = (initialMinutes * 60 + initialSeconds) * 1000
+  const [remainingMs, setRemainingMs] = useState(totalMs)
+  const [isActive, setIsActive] = useState(totalMs > 0)
+  // Deadline-based timing: immune to setInterval drift and background-tab throttling
+  const endRef = useRef<number>(Date.now() + totalMs)
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null
+    if (!isActive) return
 
-    if (isActive) {
-      interval = setInterval(() => {
-        if (seconds > 0) {
-          setSeconds(seconds - 1)
-        } else if (minutes > 0) {
-          setMinutes(minutes - 1)
-          setSeconds(59)
-        } else {
-          clearInterval(interval as NodeJS.Timeout)
-          setIsActive(false)
-        }
-      }, 1000)
-    }
+    const id = setInterval(() => {
+      const left = Math.max(0, endRef.current - Date.now())
+      setRemainingMs(left)
+      if (left === 0) {
+        clearInterval(id)
+        setIsActive(false)
+      }
+    }, 250)
 
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [isActive, minutes, seconds])
+    return () => clearInterval(id)
+  }, [isActive])
+
+  const totalSeconds = Math.ceil(remainingMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
 
   // Format numbers to always have two digits
   const formattedMinutes = minutes.toString().padStart(2, "0")

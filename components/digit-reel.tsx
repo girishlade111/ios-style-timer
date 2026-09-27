@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -10,20 +9,6 @@ interface DigitReelProps {
 }
 
 export default function DigitReel({ value, className }: DigitReelProps) {
-  const [prevValue, setPrevValue] = useState(value)
-  const [isAnimating, setIsAnimating] = useState(false)
-
-  useEffect(() => {
-    if (value !== prevValue) {
-      setIsAnimating(true)
-      const timer = setTimeout(() => {
-        setPrevValue(value)
-        setIsAnimating(false)
-      }, 300)
-      return () => clearTimeout(timer)
-    }
-  }, [value, prevValue])
-
   // Generate the digits that will appear in the reel
   // For a digit like "5", we'll show "3", "4", "5", "6", "7" in the reel
   const generateReelDigits = (currentDigit: string) => {

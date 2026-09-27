@@ -79,6 +79,7 @@ None are currently set, and none are needed. When you add one:
 
 ```js
 const nextConfig = {
+  output: "export",             // static export → out/ (2026-09-27 audit)
   eslint: {
     ignoreDuringBuilds: true,   // skip ESLint on `next build` (faster, but lint debt accumulates)
   },
@@ -129,8 +130,7 @@ What each setting does and why it matters:
   …) wired to CSS variables defined in `app/globals.css`, so the shadcn palette
   works in both light and dark themes.
 - `theme.extend.borderRadius` — `lg/md/sm` derive from `--radius` (0.5rem).
-- `plugins: []` — empty. `tailwindcss-animate` is installed but **not registered**
-  here; if you need its `animate-*` utilities, add `require("tailwindcss-animate")`.
+- `plugins: [require("tailwindcss-animate")]` — animation utilities registered (2026-09-27 audit).
 
 ### 2.4 `postcss.config.mjs`
 
@@ -138,13 +138,10 @@ What each setting does and why it matters:
 export default {
   plugins: {
     tailwindcss: {},   // Tailwind CSS processing
+    autoprefixer: {},   // Vendor prefixes (wired 2026-09-27 audit)
   },
 }
 ```
-
-Minimal PostCSS pipeline: Tailwind only. `autoprefixer` is installed in
-`package.json` but **not wired into this config** — consider adding
-`autoprefixer: {}` for automatic vendor prefixes in production CSS.
 
 ### 2.5 `components.json` (shadcn/ui)
 
@@ -179,15 +176,13 @@ export const twkEverett = localFont({
 })
 ```
 
-- Loads the **TWK Everett** typeface from local `.woff2` files.
+- Currently loads **Space Grotesk** from Google Fonts (temporary swap, 2026-09-27
+  audit — the TWK Everett `.woff2` files were never committed).
 - `variable: "--font-twk-everett"` exposes it as a CSS variable; the layout applies
-  it on `<body>` and Tailwind's `font-twk-everett` utility consumes it.
+  it on `<body>` and Tailwind's `font-twk-everett` utility consumes it unchanged.
 - `display: "swap"` avoids invisible text while the font loads.
-- ⚠️ **Known issue:** `public/fonts/` does **not exist** in the repo — the `.woff2`
-  files were never committed. `next build` will fail on `next/font/local` when the
-  source file is missing. Fix: add the two font files, or temporarily swap
-  `app/fonts.ts` to a Google Font (e.g. `Inter` or `Space Grotesk`) until the
-  license files are available. See `docs/DEVELOPER-GUIDE.md` § Fonts.
+- To restore TWK Everett: add the two font files and uncomment the `next/font/local`
+  block kept as a comment in `app/fonts.ts`.
 
 The layout also loads **Inter** from Google Fonts (`next/font/google`) for body text.
 
@@ -198,8 +193,8 @@ Scripts:
 | Script  | Command      | Use |
 | ------- | ------------ | --- |
 | `dev`   | `next dev`   | Local development server (hot reload), default http://localhost:3000 |
-| `build` | `next build` | Production build → `.next/` |
-| `start` | `next start` | Serve the production build locally |
+| `build` | `next build` | Static export → `out/` (`output: "export") |
+| `start` | `next start` | Serve a server build (unused with static export) |
 | `lint`  | `next lint`  | Lint (will prompt to install ESLint config on first run) |
 
 Engine expectations: Node.js 18.17+ / 20+ (Next 15 requires Node 18.18+); package
@@ -234,6 +229,6 @@ authoring tool. `<html lang="en" className="dark">` forces dark mode on.
 | Type errors | Shown in overlay | Ignored (`ignoreBuildErrors`) | Ignored |
 | Lint | Overlay | Skipped | Skipped |
 | Fonts | Loaded per-request | Embedded at build | Embedded at build |
-| Missing `public/fonts` | ⚠️ Build/runtime error on page load | ❌ Build fails | ❌ Deploy fails |
+| Font swap (Space Grotesk) | ✅ Builds green | ✅ Builds green | ✅ Deploys green |
 
-Fix the fonts issue first — it is the only hard blocker in the current configuration.
+The temporary font swap (2026-09-27 audit) removed the only hard build blocker.
